@@ -1,0 +1,788 @@
+---
+title: "Beautiful Cosmetics"
+author: "Mattia Brocco, Cecilia Giunta, Francesca Michielan, Giulio Piccolo"
+date: "April 2020"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+INTRODUCTION
+
+Beautiful is a company selling cosmetics, mainly in the UK. The company have been providing fragrances, skin care, and makeup since the nineties and has now decided to enter in the green marketing and widen their offer through a line of natural products.  The main issues marketing managers want to understand, before proceeding with a particular strategy regard:
+
+-	The differences in attitudes and characteristics between consumers/non-consumers of natural products (today non-consumers can be tomorrow customers?) 
+
+-	the factors impacting on the willingness to buy, and on the purchase habits
+
+-	the products to which customers are more interested
+
+-	the product characteristics on which customers focus their attention
+
+-	the way customers form their information about the products
+
+-	the existence of  particular dimensions along which consumers of cosmetics perceive natural products
+
+-	the existence of particular profiles of customers, in terms of lifestyle, perceptions, sociodemographic characteristics
+
+To understand the attitudes of prospect customers, they develop a questionnaire to investigate the most important factors influencing customers’ choices and preferences, as well as a number of variables related to lifestyle, purchase and use habits, and a small number of sociodemographic variables. 
+The questionnaire was administered through the CAWI (Computer Assisted Web Interviewing) technique, with recruitment through social networks (snow-ball sampling). The questionnaire was administrated to 209 respondents, obtaining 138 valid questionnaires. 
+To facilitate respondents, the questionnaire was articulated in several sections:
+
+1.	Natural cosmetics
+The first section of the questionnaire was aimed at collecting general information on the perception of natural cosmetics and on the propensity to purchase the category by the respondents, in order to have a first classification of purchasers of natural cosmetics. In particular, the attitude of the latter has been examined with reference to the categories of products purchased, the frequency of shopping and the methods for finding out the characteristics of the products.
+
+2.	Facial care products
+The second section was aimed at detecting information regarding the purchase behaviour of facial care products, including a series of aspects such as, for example, distribution channels and relevant product attributes. This part was oriented to the evaluation of the variables concerning the entire process of purchase of skincare products by the interviewees, regardless of their propensity, in terms of purchase / non-purchase, towards natural cosmetics. 
+
+3.	Face Care
+A section dedicated to the theme of "face care" was introduced, to understand what were the habits and styles of consumption of the respondents compared to the category investigated. For example, it was asked to indicate the type of product most purchased (hydrating, purifying, etc.), also assessing the level of interest and involvement of consumers for the beauty world.
+
+4.	Lifestyle
+Another section was dedicated to lifestyles, submitting to the assessment of the participants a series of statements about different topics such as nutrition, personal care, environmental sustainability and leisure time. 
+
+5.	Personal Information
+Finally, the last part has been designated to collect the personal data of the respondents, such as sex, age, educational level and employment status.
+
+ROADMAP:
+
+1.  Create an index summarizing the attitude towards natural cosmetics (V18-V26)
+
+2.  On the index, regress sociodemographic variables (V94-V97) to check if they have an impact
+
+3.  Add variables regarding the way they obtain information (V11-V17)
+
+4.  Factor analysis on general lifestyle questions (general: V70-V85, spending: V86-V93)
+
+5.  Cluster based on relevant factors found
+    + + Add factors found to multiple regression model and check which ones have an impact
+
+6.  Profile them by looking at sociodemographic variables in each cluster
+
+7.  Further profiling using cross tabulation to look at attitude towards natural products, willingness to buy (V3, V4).
+
+8.  Logistic regression on willingness to buy to check if it depends on the distribution channels people choose (face care) and the way they retrieve information before they buy (face care)
+    + + Interest in product categories (V5-V10)
+
+9.  Definition of natural products to understand how to market a new product, what to highlight
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include = FALSE}
+# Require necessary packages
+require(pscl)
+require(plyr)
+require(psych)
+require(mosaic)
+require(tinytex)
+require(varhandle)
+require(tigerstats)
+```
+
+First of all, seeing as there were some missing values in the dataset, we remove the rows containing them and create a secondary dataset with them. This could potentially be used to look into people who did not respond to specific questions.
+```{r}
+# Import data
+df <- read.table("beautiful.txt", header = TRUE, sep = '\t', na.strings = c("NA", "NaN", "", " "))
+
+# Drop the first column (respondent ID) as required
+# note: all questions will be identified with (number on questionnaire-1) in the code
+df <- df[,!(names(df) %in% colnames(df)[1])]
+
+# Remove rows containing NaN values
+beaut <- df[ complete.cases(df), ]
+
+dim(beaut)
+```
+16 out of 138 rows were removed, resulting in a dataframe with 122 rows and 96 columns.
+
+
+We investigated the perception of natural products that people have with respect to traditional products, and we built an index measuring the attitude towards natural products, in such a way that a higher score implies more favourable attitude. In calculating this index we have summed the positive statements along with the inverse of the negative ones (pos. score = 10 - neg. score)
+
+### QUESTION 1: Do *sociodemographic* variables have an impact on the attitude people have towards natural cosmetics? In case they do not, does the attitude towards natural products depend on any other variables?
+
+In order to create an "attitude towards natural products" index, we retrieve the information obtained from question 3 (V18-V26) which summarizes respondents' perceptions of natural products with respect to traditional products. In this index a higher score implies a more favourable attitude towards natural products. To calculate it, the positive statements are summed with the inverse of the negative ones such that positive score = 11 - negative score.
+
+To do so, we need to investigate which statements are considered as negative by looking at their correlation with 'Just a marketing trick' (V26) which clearly indicates a negative attitude.
+```{r}
+corr_exp <- cor(beaut[,17:25])
+colnames(corr_exp) <- c(1:9); rownames(corr_exp) <- c(1:9)
+round(corr_exp,3)
+```
+"Trendy" (row 3) and "Expensive" (row 6) seem to be positively correlated with "Just a marketing trick" (row 9) and mostly negatively correlated to other variables. 
+"Trendy", "Expensive" and "Just a marketing trick" will be considered as negative statements in our index and therefore their score will be inverted.
+
+
+```{r}
+# Investigate education.level
+# it had 4 choices in the survey but no respondents selected 'Primary school' as their education level
+unique(beaut[,94])
+```
+
+**Build the attitudes index**
+```{r}
+attitudes <- rowSums( cbind( beaut[17:18], (beaut[19]*-1)+11, beaut[20:21], (beaut[22]*-1)+11, beaut[23:24], (beaut[25]*-1)+11 )) 
+# negative statements: take the inverse and sum 11 to obtain a low positive score
+
+gender <- beaut[,93]
+education.level <- beaut[,94]
+occupation <- beaut[,95]
+age <- beaut[,96]
+```
+
+**MULTIPLE REGRESSION**: regress *sociodemographic variables* (gender, education level, occupation, age) on the attitudes index to check if attitudes are related to sociodemographic characteristics of respondents.
+```{r}
+model <- lm(attitudes ~ gender + education.level + occupation + age)
+summary(model)
+```
+Note: genderF, education.levelBachelor Degree, occupationemployed are taken as a benchmark in the first three categorical variables (age is numerical).
+
+Interpretation of the output:
+
+- Gender and Education level do not have a significant impact on the attitudes index when considering the other variables. These variables should be removed from the model.
+
+- Student is the only significant category in the occupation variable. It is significant at the 5% level: students have a less favourable (-6.03 points on the index) attitude towards natural products with relation to BA graduates.
+
+- Age is significant the 5% level of significance: every additional year leads to a reduction of 0.23 points in the index.
+
+Looking at the adjusted $R^2$ we can affirm that the model explains only 2.4% of the variability in the attitudes index and the p-value is not close to zero.
+
+We can try to obtain a better result by removing the categories that were not significant from the model (Gender, Education, create dichotomous variable for occupation only indicating student/non-student):
+```{r}
+dich.occupation <- rep(0,96)
+dich.occupation[which(beaut[,95]=="student")] <- "student"
+dich.occupation[which(beaut[,95]!="student")] <- "non student"
+contrasts(factor(dich.occupation))
+```
+
+Estimate the model again:
+```{r}
+model0 <- lm(attitudes ~ factor(dich.occupation) + age)
+summary(model0)
+```
+Now the variables are all significant: only being a student or not and the age of a respondent impact his/her attitude towards natural cosmetics.
+
+- Occupation: students have a less positive attitude (-5.12 points in the index) towards natural products compared to non-students (p-value significant at the 5% level). This could potentially be explained by the fact that students have less money and natural products are generally more expensive.
+
+- Age: with every additional year of age, the attitude towards natural products is 0.23 points lower. So, the older respondents are the less positive their attitude is towards natural product. This could possibly be because the "green market" seems to be a trend that is especially popular among young people and older people may be more skeptical.
+
+Looking at the $adjusted R^2$ we can affirm that the model explains only 2.9% of the variability in the attitudes index and the p-value is still not close to zero. 
+
+This could be because the sociodemographic variables do not explain enough about the respondents' attitudes towards natural products. To improve this model, we can try adding additional variables.
+ 
+Among the variables we have, we attempt at using the information regarding *how respondents find out about the characteristics of the natural products they are interested in* (question 2.3, V11-V17) since our explorative research suggested that the way people gather information seems to impact their perceptions of natural products.
+
+```{r}
+ch_web <- factor(beaut[,10])  # dummy because it's a yes/no question
+ch_wom <- factor(beaut[,11])
+ch_social <- factor(beaut[,12])
+ch_adv <- factor(beaut[,13])
+ch_salesppl <- factor(beaut[,14])
+ch_self <- factor(beaut[,15])
+ch_pharma <- factor(beaut[,16])
+```
+
+```{r}
+class(ch_web) # 1 is yes, 0 is no
+```
+
+```{r}
+model1 <- lm(attitudes ~ dich.occupation + age + ch_web + ch_wom + ch_social + ch_adv + ch_salesppl + ch_self + ch_pharma)
+summary(model1)
+```
+Interpretation of the output:
+
+- Both student and age variables have improved significance (lower p-value), meaning they have gained explanatory power with relation to the attitudes towards natural products. Their coefficient slightly changed but not dramatically and still bring the same information.
+
+- There are three relevant variables among the channels people use to fetch information about natural products they are interested in. The first one is 'Blogger/Forums/Social Networks', which is significant at the 5% level. People who retrieve information using social media platforms have a more positive attitude (5.57 points) towards natural products with relation to people who don't.
+
+- The second one is "Advertising", with a significance at the 1% level and a negative influence on the index. People who retrieve information from advertising of natural products have a more negative attitude towards natural products (-6.74 points in the index) as compared to people who don't.
+
+- The third and last one is 'Self-provided information', which has a significance at the 5% level. People who retrieve information by themselves have a more positive attitude towards natural products (7.38 points) with relation to people who don't.
+
+Looking at the $adjusted R^2$ we can affirm that the model explains 16% of the variability in the attitudes index, which is a big improvement, and this is significantly different from zero since we obtain a small p-value (1% level).
+
+
+**DIAGNOSTIC CHECKING**: Check if the hypothesis we imposed on the model are sensible for this dataset to understand if we can trust the results.
+
+1. *Plot the residuals* over fitted values:
+```{r}
+plot(model1, 1)
+```
+
+The line has no specific shape so there does not seem to be a systematic increase or decrease in the variance, indicating that residuals are homoscedastic.
+Outliers with large residuals with relation to the average residual are marked with the number of the observation. They could be influencing the estimates.
+
+2. Control for *normal distribution of residuals*:
+```{r} 
+par(mfrow = c(1, 2))
+
+plot(model1, 2)
+
+plot(density(model1$residuals), ylim = c(0, 0.06))
+curve(dnorm(x, mean = mean(model1$residuals), sd = sd(model1$residuals)), add = T, col = 2)
+```
+
+Difference in normality only in the tails of the distribution but only slightly.
+
+3. *Kolmogorov-Smirnov Test*:
+```{r}
+ks.test(model1$residuals, "pnorm")
+```
+The p-value close to zero. Reject the hypothesis that the empirical distribution we are observing comes from the normal distribution (KS test null hypothesis).
+
+4. *Goodness of fit* between fitted and observed value:
+```{r}
+par(mfrow=c(1,1)); plot(model1$fitted, attitudes); abline(0,1)
+```
+
+Dots do not lie on the bisector so the model does not give a good fit, as anticipated by the low $adjusted R^2$.
+
+To sum up: the analysis of residuals confirmed that they were homoscedastic, however, the hypothesis of normality is rejected by the KS test and the model does not give a good fit as we can see from the graph.
+
+We can try removing the outliers and re-run the regression and test of normality to check that they were not impacting the estimates excessively.
+
+*REMOVE OUTLIERS*:
+```{r}
+# Remove outliers from index and variables of interest
+attitudes_nout <- attitudes[-c(11,29,114)]
+dich.occupation_nout <- dich.occupation[-c(11,29,114)]
+age_nout <- age[-c(11,29,114)]
+ch_social_nout <- ch_social[-c(11,29,114)]
+ch_adv_nout <- ch_adv[-c(11,29,114)]
+ch_self_nout <- ch_self[-c(11,29,114)]
+```
+
+```{r}
+model1_nout <- lm(attitudes_nout ~ dich.occupation_nout + age_nout + ch_social_nout + ch_adv_nout + ch_self_nout)
+summary(model1_nout)
+```
+
+Adjusted $R^2$ = 13% is lower than the previous one (16%), so the outliers were not interfering with the goodness of fit of the model.  The low p-value indicates that the statistic is significantly different from zero.
+
+Summary: This model cannot be used for prediction because the $R^2$ is low and the diagnostic checking was not successful, in particular the KS test has p-value close to zero and the last graph portrays a poor goodness of fit with the model. We can however still use it to investigate what influences attitudes towards natural products as we have investigated up until now.
+
+
+### QUESTION 2: Is people's lifestyle a unidimensional trait or does it have dimensions to it?
+
+We want to perform factor analysis on the numerous questions investigating the respondents' lifestyle and habits (V70-V85) to reduce the number of variables used to indicate lifestyle, so that they can then be more easily used for other purposes such as clustering and adding them to the multiple regression model.
+
+**FACTOR ANALYSIS**
+1. Evaluate if there is any correlation worth exploring among the variables.
+```{r}
+# Correlation matrix
+corr <- cor(beaut[,69:84])
+colnames(corr) <- c(1:16); rownames(corr) <- c(1:16)
+round(corr,3)
+```
+
+There seem to be some correlations worth exploring, although not too strong.
+
+2. Evaluate if the correlation reported in the matrix is enough to proceed with factor analysis with KMO index and Bartlett test for independence among variables.
+```{r}
+# KMO index
+KMO(beaut[, 69:84])
+
+# Bartlett test of sphericity
+cortest.bartlett(beaut[, 69:84])
+```
+
+It seems worthwhile to proceed with factor analysis because the variables are correlated as indicated by:
+
+- Overall MSA = 0.77, bigger than 0.50 threshold. They share common variability.
+
+- Bartlett test rejects the hypothesis of independence (equal to null matrix) with a p-value close to zero.
+
+
+We start with the *hypothesis of 5 underlying factors* to summarize our 16 variables (number smaller than the number of variables).
+```{r}
+factan5 <- factanal(beaut[,69:84], 5)
+factan5
+```
+
+Choice of number of factors: SS Loadings seem to suggest that a 5-component solution is sufficient since all 5 factors explain more than a single variable (loadings larger than 1) and the first 5 factors together explain 57% of the total variability (close to the 60% threshold). Moreover, the p-value accepts the hypothesis that 5 factors are sufficient. 
+
+*Scree plot*:
+```{r}
+plot(seq(1:5), colSums(factan5$loadings^2), xlab="number of factors", ylab="variance explained by each factor (SS loadings)")
+lines(seq(1:5), colSums(factan5$loadings^2))
+```
+
+The scree plot suggests that maybe 4 factors are a better choice. However, when attempting a 4-component solution a p-value close to zero rejected that 4 factors were sufficient.
+
+Therefore, *five factors were obtained and rotated*:
+```{r}
+factan55 <- factanal(beaut[,69:84], 5, rotation = "varimax", scores = "regression")
+factan55
+```
+Here, the p-value is larger than 5% so we can accept the hypothesis that 5 factors are sufficient. 
+
+In order to try and achieve a cumulative variance higher that 60%, we attempt at taking out the variables that have the highest uniquenesses (we cannot reduce the number of factors). High uniquenesses: regExercise, NatSupply.
+
+
+```{r}
+# Variables with high uniquenesses removed
+factan551 <- factanal(cbind(beaut[,69:71],beaut[,73:75], beaut[,77:84]), 5, rotation="varimax", scores="regression")
+factan551
+```
+We obtain a positive result since the cumulative variance for 5 factors is now up to 61%.
+
+We proceed in *naming the factors* by looking at the correlation between the factors and the original variables.
+
+* FACTOR 1: More correlated with the variables takecareimage ("I take care a lot of my image"), look.fundam ("Taking care of one's look is fundamental for his/her wellbeing"), and ImpGoodapp ("It's important to always have a good appearance"). We can call it an **Appearance Factor**.
+
+* FACTOR 2: More correlated with the variables carenatmethods ("I take care of myself through natural methods"), Envir "Reducing impact on environment, with an environmentally friendly lifestyle"), organicfood ("Make use of organic food products"), BetterPerson ("Using natural products makes me feel like a better person"), Difference ("Know difference between natural/organic"). We can call it a **Sustainability Factor**.
+
+* FACTOR 3: More correlated with the variables DesignClothes ("Prefer designer clothes and well known brand products"), Highpricebrandqual ("High price and well-known brand are synonyms of quality"), and FollowTrends ("Follow trends as seen in social media"). We can call it a **Trend Factor**.
+
+* FACTOR 4: Most correlated to the variable RefinedInd ("Consume refined/industrial food products"). We can call it a **Traditional Factor**.
+
+* FACTOR 5: Most correlated to the variable ReadLab ("I always read the labels of what I buy"). We can call it an **Attention Factor**.
+
+To resume the findings, we can state that the respondents' lifestyles are characterized by five underlying dimensions: an appearance dimension, a sustainability dimension, a trend dimension, a traditional dimension and an attention one. 
+
+**Question 2.1**: Does the lifestyle of respondents lead influence their attitudes towards natural products? What factors drive attitude towards natural products? 
+Our explorative research links the lifestyles led by people to their perceptions of natural products. We want to confirm or deny this by adding the factors found to the multiple regression model we have previously used to investigate what impacts the attitudes index.
+
+```{r}
+# Extract factor scores for use
+fact.scores <- factan551$scores
+appearance <- fact.scores[,1]
+sustainability <- fact.scores[,2]
+trend <- fact.scores[,3]
+traditional <- fact.scores[,4]
+attention <- fact.scores[,5]
+```
+
+*Adding lifestyle factors to the multiple regression on attitudes index*
+```{r}
+model1_factors <- lm(attitudes ~ dich.occupation + age + ch_social + ch_adv + ch_self + appearance + sustainability + trend + traditional + attention)
+summary(model1_factors)
+```
+Adding them has kept the significance of previous variables roughly the same. 
+Only one of the factors is significant (at the 1% level): it is *Sustainability*. This means that attitudes towards natural products are positively related (positive coefficient) only to leading a particularly "ecological" lifestyle.
+
+Looking at the adjusted $R^2$ we can affirm that the model explains 28% of the variability in the attitudes index, which is a considerable improvement, and this is significantly different from zero since we obtain a p-value that is very close to zero.
+
+
+### QUESTION 3: Can we identify different groups of respondents according to the characteristics of their lifestyle (resumed by the five factors)?
+We are aiming to perform a market segmentation by (1) obtaining the clusters by applying a clustering algorithm, (2) naming the clusters by looking at the average scores for each (centroids), (3) profiling them according to external variables useful to understand consumer behavior and characteristics.
+
+1) **Obtaining the clusters**
+```{r}
+# Calculate the distance matrix as the starting point for clustering
+d <- dist(fact.scores, method = "euclidean")
+
+clu <- hclust(d, method = "ward.D") # Ward method was the best performing
+
+# Plot dendogram
+plot(clu, hang = -1, cex = 0.6)
+```
+
+We have selected four as the number of clusters as a result of the difficult trade-off between cutting where we have the longest distance between subsequent agglomeration sets and searching for homogeneous and well-separated groups.
+
+```{r}
+# Select four clusters and use rect.hclust to retrieve the group membership
+plot(clu, hang = -1, cex = 0.6) 
+rect.hclust(clu, k = 4, which = c(1,2,3,4), border = 1:4)
+```
+
+```{r}
+memb <- cutree(clu, k = 4)
+memb
+```
+
+2) **Naming the clusters** by analyzing centroids
+```{r}
+# Initialize a matrix with 4 rows (number of clusters) and 5 columns (number of factors used to cluster the observations)
+clu.scores<-matrix(0,4,5)
+rownames(clu.scores)<-c("cluster1","cluster2","cluster3","cluster4")
+for (i in 1:4){
+  for (j in 1:5){
+    clu.scores[i,j]<- round(mean(fact.scores[memb==i,j]),3) 
+    
+    }
+  }
+
+colnames(clu.scores)<-c("Appearance","Sustainability","Trendy","Traditional","Attention")
+clu.scores
+```
+
+Note that factor scores are centered on zero. Therefore, the higher the score on the positive axis, the larger the level of agreement with that specific factor from respondents in that cluster; the opposite is true for negative values. Values close to zero will be considered as evaluated with neutrality by respondents.
+
+* CLUSTER 1: **Fashionistas**. It is composed of consumers who have a very high score in the trendy factor, as well as significant score in the appearance factor. These people care about their image, follow the latest trends and prefer famous brands as an indicator of quality. They somewhat align with the traditional factor, meaning they buy industrial refined products. They are neutral with regards to sustainability and attention.
+
+* CLUSTER 2: **Skeptically Indifferent**. It is composed of respondents who do not value appearance, sustainability and attention. They are somewhat on the negative side of the trendy and traditional factors too. These people do not lead an environmentally lifestyle and are not inclined to read labels on what they buy, but at the same time they do not necessarily buy refined products. They do not pay particular attention to their appearance and they also do not care too much about trends and brands. We imagine them as customers who will buy what is more convenient and/or effective rather than choosing based on what is natural or refined.
+
+* CLUSTER 3: **Environmentalists**. It is composed of respondents who lead environmentally friendly lifestyles. In fact, we can observe low scores on the trendy factor and on the traditional one. They somewhat value appearance and pay attention to a certain extent to what they buy. These people are involved in actively reducing their impact on the environment. In fact, they do not follow trends and probably stay away of big famous brands since they also avoid buying industrial and refined products. 
+
+* CLUSTER 4: **Traditionals**. It is composed of respondents who do not behave according to the trendy factor, but they do follow the traditional factor. They value the attention factor and somewhat value the sustainability one. They are indifferent to appearance. These people are "traditional buyers" since they are probably conscious of what an eco-friendly lifestyle is, but they do not necessarily incorporate it in their behaviors. They do not follow trends or value famous brands. They buy industrial and refined products but tend to be careful of what they buy by reading the labels.
+
+
+3) **Profiling the clusters**: characterize the clusters according to external variables other than the ones used to build them.
+
+* Categorical variables: compare the percentage of each category with respect to the whole sample. 
+
+* Numerical variables: compare the average (median) of the variable with respect to the whole sample.
+In each case, understand which clusters differentiate themselves from the others with regard to any particular category and using the whole sample as a benchmark.
+
+*sociodemographic variables*
+
+#### Gender:
+```{r}
+clusters <- c("Fashionistas", "Skeptically Indifferent", "Environmentalist", "Traditionals", "sample")
+
+res_gender<-rbind(round(prop.table(table(memb, gender),1)*100,1),
+                  round(prop.table(table(gender))*100,1))
+rownames(res_gender)<-clusters
+res_gender
+```
+We can trust these results up to a certain extent since, as we can see from the sample values, the respondents were mainly females. Therefore, we may not have enough information about males to draw confident conclusions about them. It is also true, however, that, as verified in our exploratory research, usually the main purchasers of natural cosmetics are women.
+Anyway, from the table we can see that:
+
+- Fashionistas are females in a higher percentage with respect to the whole sample. Actually, the cluster is composed solely of female respondents.
+
+- Skeptically Indifferents are in line with the whole sample.
+
+- Environmentalists are also roughly in line with the whole sample, with slightly less females and slightly more males. 
+- The same holds for Traditionals but to a lesser extent.
+
+#### Education:
+```{r}
+res_edu<-rbind(round(prop.table(table(memb, education.level),1)*100,1),
+                  round(prop.table(table(education.level))*100,1))
+rownames(res_edu)<-clusters
+res_edu
+```
+
+From the table we can see that:
+
+* Fashionistas do not show any considerable difference from the sample.
+
+* Skeptically Indifferents have a higher percentage of BA graduates as well as Master graduates, while a lower percentage of people with only a secondary school diploma.
+
+* Environmentalists also have a higher percentage of BA graduates with relation to the whole sample. They also have slightly higher one for Master graduates and a lower one from secondary school.
+
+* Traditionals have a lower percentage of BA and Master graduates with relation to the whole sample and a higher percent of secondary school graduates.
+
+#### Occupation:
+```{r}
+res_occ<-rbind(round(prop.table(table(memb, occupation),1)*100,1),
+                  round(prop.table(table(occupation))*100,1))
+rownames(res_occ)<-clusters
+res_occ
+```
+
+From the table we can see that:
+
+* Fashionistas have a higher percentage of employed with relation to the whole sample. They are in line with the student percentage and they have no unemployed respondents.
+
+* Skeptically Indifferents have a lower percentage of employed with relation to the whole sample. They also have a higher percentage of students and a slightly lower one of unemployed.
+
+* Environmentalists have a lower percentage (the lowest) of employed with relation to the whole sample. Their percentage of students is in line with the sample, while they have a higher (highest) percentage of unemployed.
+
+* Traditionals have a higher percentage of employed, a lower percentage of students and a higher percentage of unemployed with relation to the whole sample.
+
+#### Age:
+```{r}
+# Density plot to check where to place intervals for age
+densityplot(beaut$age)
+```
+
+```{r}
+# Made age a categorical variable to portray generations (more informative than median)
+short_age <- cut(beaut$age, breaks = c(18, 25, 35, 45, 55, Inf), labels = c('19-25', '26-35', '36-45', '46-55', '55-67'), include.lowest = FALSE, right=TRUE)
+```
+
+```{r}
+res_age<-rbind(round(prop.table(table(memb, short_age),1)*100,1),
+                  round(prop.table(table(short_age))*100,1))
+rownames(res_age)<-clusters
+res_age
+```
+From the table we can see that:
+
+* Fashionistas have a percentage of people between the ages of 19-25 and 55-67 that is in line with the whole sample. They show a higher percentage of people between the ages of 26-35 and a lower one between 36-45 and 46-55 with relation to the whole sample.
+
+* Skeptically Indifferents have a higher percentage of people between 19-25, 26-35 and 55-67 with relation to the whole sample. On the other hand, they show a lower percentage between 36-45 and 46-55.
+* Environmentalists have a slightly higher percentage of people aged 19-25 and 46-55 compared to the whole sample, and a higher one for people between 36-45. They also show a considerably lower percentage of people aged 26-35 and 55-67.
+
+* Traditionals show a lower percentage of people aged 19-25 compared to the whole sample. They also have a percentage of 26-35 and 55-67 that is lower with respect to the sample. They have a higher percentage of people between the ages of 36-45 and 46-55 with relation to the whole sample.
+
+**Verify significance of relationships**
+The cluster's membership is a categorical variable, so we can test if the described relationships are statistically significant (chi squared test of independence between two variables: categorical variable, membership to the cluster).
+```{r}
+# build a list with tables for all our categorical sociodemographic variables all of which tabulated according to cluster membership
+res1 <-list(table(memb,gender), table(memb,education.level),
+            table(memb, occupation), table(memb,short_age))
+names(res1) <- c("gender","education","occupation", "age")
+lapply(res1,summary) # apply summary to all of the elements of the list in a compact way 
+```
+
+With high p-values we cannot reject the hypothesis of independence, so we cannot state that gender, education, occupation and age have an impact on the membership to clusters. This means that membership to clusters does not depend on the sociodemographic variables of a respondent. Anyway, keeping this in mind, our clusters were still characterized by some striking differences from the whole sample in the sociodemographic variables mentioned that we coherent with other findings. We will mention this in the profiling purely as a measure of what we have found in our particular study about the distribution of the sociodemographic variables among the clusters, although the same may not necessarily hold for the whole population.
+
+
+#### Attitude towards natural products
+```{r}
+#attitude
+m_att <-matrix(0,1,5)
+colnames(m_att)<-clusters
+rownames(m_att)<-c("attitude mean")
+
+for (i in 1:4){m_att[1,i]<-mean(attitudes[memb==i])}
+#mean for the whole sammple
+m_att[5]<-mean(attitudes)
+m_att
+```
+From the table we can see that:
+
+* Fashionistas have an attitude towards natural products that is line with the whole sample.
+
+* Skeptically Indifferents have a lower attitude compared to the whole sample.
+
+* Environmentalists have a higher attitude with relation to the whole sample.
+
+* The same holds for Traditionals but to a lesser extent.
+
+#### Intensity of purchase
+```{r}
+# Creating binary variable for frequency of purchase
+# 0 moderate buyer
+# 1 intensive buyer
+wtb <- rep(0,122)
+wtb[which(beaut[, 3] == 3)] <- 1
+```
+
+```{r}
+res_wtb<-rbind(round(prop.table(table(memb, wtb ),1)*100,1),
+                  round(prop.table(table(wtb))*100,1))
+
+rownames(res_wtb)<-clusters
+colnames(res_wtb)<-c("moderate","frequent")
+res_wtb
+```
+From the table we can see that:
+
+- Fashionistas have a larger percentage of moderate personal care products buyers with respect to the whole sample and a smaller one of frequent buyers. This was an unexpected result.
+
+- The same holds for skeptically indifferents, but this was expected.
+
+- Environmentalists present a lower percentage of moderate buyers with respect to the whole sample and a higher one for frequent buyers, as expected.
+
+- Traditionals show a lower percent of moderate buyers compared to the whole sample, and a lower one for frequent buyers.
+
+**Verify significance of relationships**
+```{r}
+# Categorical variables: intensity of purchase
+res2 <-list(table(memb,wtb))
+names(res2) <- c("Frequency of Purchase")
+lapply(res2,summary) 
+```
+The p-value is close enough to zero to affirm that a respondent's membership to one or the other cluster is dependent on his/hers frequency of purchase.
+
+```{r}
+# Numerical variables: attitudes  
+t.test(attitudes[memb==1], attitudes[memb==2], alternative = "greater") #ok p-value = 0.01 (5%)
+t.test(attitudes[memb==1], attitudes[memb==3], alternative = "less") #limit p-value = 0.09 (10%)
+t.test(attitudes[memb==1], attitudes[memb==4], alternative = "less") #no p-value = 0.13
+t.test(attitudes[memb==2], attitudes[memb==3], alternative = "less") #ok p-value = 0.001 (1%)
+t.test(attitudes[memb==2], attitudes[memb==4], alternative = "less") #ok p-value = 0.0004 (1%)
+t.test(attitudes[memb==3], attitudes[memb==4], alternative = "greater") #no p-value = 0.36 
+```
+The test on the difference of the index values among different clusters was successful only for 3 pairs out of 6 (while one is at the 10% limit). Therefore, we can say that membership to a certain cluster does not statistically depend on respondents' attitudes towards natural products. However, since we obtained some positive results, the attitudes may still have a certain influence on a respondent's membership to one or the other cluster.
+
+**THE PROFILES**
+
+- *FASHIONISTAS*: more females, more people within the ages of 26-35 (millennials), most employed and very few unemployed, more moderate buyers. The rest of the variables are in line with the whole sample. Fashionistas are principally females who are interested in beauty and trends. Moreover, they are mostly employed but moderate buyers. They could be a segment on which to focus since, given their interests, they could potentially become frequent buyers and be interested in effective natural products.
+
+- *SKEPTICALLY INDIFFERENT*: more educated, more students, their age group focuses on the extremes (Gen Z and Boomers), their attitude towards natural products is lower, more moderate buyers. This cluster is not promising in terms of targeting for natural products, especially the older part of it. It may not be worth it to try and change their minds.
+
+- *ENVIRONMENTALISTS*: more unemployed, more people aged 36-45, better attitude towards natural products, more frequent buyers. This is certainly a segment to concentrate on since their habits make them possible consumers of natural products. However, they may need a more specific approach on pricing and communication channels, considering there are many unemployed and their age.
+
+- *TRADITIONAL*: less educated, less students, more people aged 46-55, slightly higher attitude index, more frequent buyers. At the moment, this cluster may not be systematically buying natural products, but they may be interested in doing so for personal care since they are still frequent buyers in that market. Their attitude may be improved with campaigns designed to build awareness and/or underlining quality and effectiveness, so that they are encouraged to be more conscious about their choices not only in terms of reading labels but in terms of repercussions on the environment.
+
+
+### QUESTION 4: Can we predict frequency of purchase (proxy for willingness to buy)? What has an impact on the frequency of purchase (distribution channels, retrieving information)?
+We would like to use logistic regression to test if the distribution channels customers choose and the way they gather information before buying a face care product have an impact on the frequency of purchase. However, this information is available only for the face care segment since out survey was centered mainly on face care products. From out explorative research we noted that face care is a particularly popular category of cosmetics in general and of natural cosmetics. 
+To understand if this is true and if we can use the information regarding face care products as an indication of customer's behavior towards cosmetics in general, we investigate what are the product categories that people have bought in the last three months. This also underlines what the most popular segment would be among the cosmetics ones.
+```{r}
+column_names = list()
+values = list()
+colors = vector()
+for(i in 4:9){
+  yes = sum(beaut[,i]==1)
+  no = sum(beaut[,i]==0)
+  bought = round( (yes/(yes+no))*100, 2)
+  column_names = c(column_names,colnames(beaut)[i])
+  values = c(values, bought)
+  if(bought == 100){colors = c(colors, "#0000FF90")}else{colors = c(colors, "lightblue")}
+}
+
+bp <- barplot(unlist(values), ylim=c(0,110), names=column_names, cex.names=0.85, col=colors,
+              xlab = "Product Category", ylab = "Percentage of respondents", border=NA, main="Product Bought")
+text(bp,values,labels=paste(values, "%"), pos=3) 
+```
+
+As we can see from the graph, all respondents bought at least one face care product in the last three months. This suggests that it may be safe to use the information regarding face care products since it is the most popular category, and everyone has bought from it at least once.
+
+**LOGISTIC REGRESSION**
+
+As a proxy for willingness to buy we will use question 2.1 (V4) indicating the frequency of purchase in the last three months since all respondents stated they had bought at least one product for personal care in the last three months.
+In the dataset, the frequency of purchase variable has three categories and we need to reduce them to two.
+
+Dependent variable: Y = *willingness to buy (frequency of purchase)*
+```{r}
+# 0 moderate buyer
+# 1 intensive buyer
+wtb <- rep(0,122)
+wtb[which(beaut[, 3] == 3)] <- 1
+```
+
+1) MODEL 1
+*Regressors*: x = *distribution channels* of choice for face care products (V29-V38).
+```{r}
+# Building the training set
+set.seed(1234) # we set the seed for random sampling from the whole sample
+index.tr<-sample(c(1:122), 90) # the training size of 90
+
+train.index <- sort(index.tr)
+test.index <- seq(1:122)[-train.index]
+```
+
+```{r}
+log.reg.shop <- glm(wtb[index.tr] ~ beaut[index.tr,28] + beaut[index.tr,29] + beaut[index.tr,30] + beaut[index.tr,31] + beaut[index.tr,32] + beaut[index.tr,33] + beaut[index.tr,34] + beaut[index.tr,35] + beaut[index.tr,36] + beaut[index.tr,37], family=binomial(link='logit'))
+
+summary(log.reg.shop)
+
+round(exp(log.reg.shop$coefficients), 3)
+```
+
+- *V[31] = Pharmacy*: With a higher intensity of shopping for face care products in a pharmacy, the odds of being an intensive buyer are reduced by 24.8%.
+
+- *V[35] = Online shops*: With a higher intensity of shopping for face care products in online shops, the odds of being an intensive buyer are increased by 32.5%.
+
+- *V[37] = Organic product shops*: With a higher intensity of shopping for face care products in organic product shops, the odds of being an intensive buyer are increased by 26%.
+
+**Goodness of fit**: understand the extent to which we can trust this model.
+*Tests*
+```{r}
+#pR2(log.reg.shop) # Mcfadden corresponds to pseudo R^2
+
+nullmodel<-glm(wtb ~ 1, family = binomial(link="logit"))
+
+# chisquared statistic applied to the comparison between null deviance and deviance of residuals
+lt1 <- round(with(log.reg.shop, pchisq(null.deviance-deviance, df.null - df.residual, lower.tail = FALSE)),5)
+print(paste("Likelihood test p-value:", lt1))
+
+# pseudo R sqaured
+print(paste('pseudo R-squared:', round(1-logLik(log.reg.shop)/logLik(nullmodel),3)))
+```
+
+The p-value is low, so the statistic is actually significantly different from zero, meaning that the choice of distribution channel captures the frequency of purchase of personal care products. However, the $R^2$ is not close to 1.
+
+*Confusion Matrix*
+```{r}
+# Retrieving test set
+test.shop <- data.frame(beaut[test.index,28:37])
+dim(test.shop); head(test.shop)
+```
+
+```{r, warning=FALSE}
+# Applying estimated coefficients to the whole test set
+predicted1.shop <- exp(log.reg.shop$coefficients[1] + log.reg.shop$coefficients[2:11]%*%t(test.shop))/(1+exp(log.reg.shop$coefficients[1] + log.reg.shop$coefficients[2:11]%*%t(test.shop)))
+
+# Assign 1(intensive)/0(moderate) values to the predicted probabilities
+predicted.shop <- ifelse(predicted1.shop > 0.5, 1, 0)
+
+# Confusion matrix (absolute)
+table(wtb[test.index], predicted.shop) 
+
+#Confusion matrix percentages of correct and bad classification
+round(prop.table(table(wtb[test.index],predicted.shop),1),2)
+```
+The confusion matrix supports the validity of the model for prediction purposes and therefore the dependency of frequency of purchase on choice of distribution channel (although $R^2$ was low).
+
+Therefore, a respondent's frequency of purchase depends on the distribution channels he/she choose.
+
+*Accuracy*
+```{r}
+miscl.shop <- mean(predicted.shop != wtb[test.index])
+print(paste('Misclassification error:',miscl.shop))
+print(paste('Accuracy:',round(1-miscl.shop, 2)))
+```
+
+2) MODEL 2
+*Regressors*: x = *channels trusts for information* before buying face care products (V39-V46).
+```{r}
+log.reg.info <- glm(wtb[index.tr] ~ beaut[index.tr,38] + beaut[index.tr,39] + beaut[index.tr,40] + beaut[index.tr,41] + beaut[index.tr,42] + beaut[index.tr,43] + beaut[index.tr,44] + beaut[index.tr,45], family=binomial(link='logit'))
+summary(log.reg.info)
+
+
+round(exp(log.reg.info$coefficients), 3)
+```
+
+- *[V39] Pharmacist/Dermatologist*: With a higher intensity of getting advice from a pharmacist/dermatologist, the odds of being an intensive buyer are reduced by 18.9%.
+
+- *[V40] Friends*: With a higher intensity of getting advice from a friend, the odds of being an intensive buyer are reduced by 27.2%.
+
+- *[V41] Blogs/Social Networks*: With a higher intensity of getting advice from blogs/social networks, the odds of being an intensive buyer are increased by 19.4%.
+
+- *[V44] List of ingredients*: With a higher intensity of reading the list of ingredients, the odds of being an intensive buyer are increased by 30.9%.
+
+**Goodness of fit**
+
+*Tests*
+```{r}
+#pR2(log.reg.info)
+
+lt2 <- round(with(log.reg.info, pchisq(null.deviance-deviance, df.null - df.residual, lower.tail = FALSE)),5)
+print(paste("Likelihood test p-value:", lt2))
+
+# pseudo R squared
+print(paste('pseudo R-squared:', round(1-logLik(log.reg.info)/logLik(nullmodel),3)))
+```
+The p-value is close to zero but the pseudo $R^2$ is a bit low.
+
+*Confusion Matrix*
+```{r}
+test.info <- data.frame(beaut[test.index,38:45])
+dim(test.info); head(test.info)
+```
+
+```{r, warning = FALSE}
+predicted1.info <- exp(log.reg.info$coefficients[1] + log.reg.info$coefficients[2:9]%*%t(test.info))/ (1+exp(log.reg.info$coefficients[1] + log.reg.info$coefficients[2:9]%*%t(test.info)))
+
+predicted.info <- ifelse(predicted1.info > 0.5, 1, 0)
+
+table(wtb[test.index], predicted.info)
+
+round(prop.table(table(wtb[test.index], predicted.info), 1), 2)
+```
+The model is acceptable, only one out of the two categories is labeled at random. Even though it is not too bad, this model would probably be discarded for prediction. However, we can still affirm that the way people gather information before buying face care products influences the frequency of purchase of personal care products.
+
+*Accuracy*
+```{r}
+miscl.info <- mean(predicted.info!= wtb[test.index])
+print(paste('Miscalssification error:', miscl.info))
+print(paste('Accuracy:', round(1-miscl.info, 2)))
+```
+
+
+### QUESTION 5: What are the most popular definitions of natural products in the eyes of respondents?
+We want to understand how customers define natural products since our explorative research underlined the fact that definitions vary a lot. Once we know how people generally define natural products, this can serve as an indication about how to market natural products in order to highlight specific product characteristics. 
+
+```{r}
+fre <- table(beaut[,1])
+fre.p <- round(fre/dim(beaut)[1]*100,1)
+
+par(mar = c(2, 2, 0, 2))
+bp <- barplot(fre.p, ylim=c(0,max(fre.p)*(1+0.5)), las=1, cex.names=0.71, names.arg=c("No test on animals","Ecological", "Herbal/vegetal","Healthy ingr.","Natural ingr.","Organic ingr."), col="#69b3a2", border = NA, yaxt = "n")
+text(bp, fre.p, labels=paste(fre.p, "%"), cex = 0.8, pos = 3)
+
+```
+
+The most common definition of natural products in related to the fact that they contain natural ingredients, so this aspect should be stressed in a potential new product but in the labels and in its marketing. Other potentially beneficial characteristics to underline are the fact that preparations are herbal or vegetal based and that the products are non-polluting.
