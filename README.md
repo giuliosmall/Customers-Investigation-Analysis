@@ -3,13 +3,13 @@ Project created to explore and investigate the possibility for a traditional cos
 
 ## INTRODUCTION
 Beautiful is a company selling cosmetics, mainly in the UK. The company have been providing fragrances, skin care, and makeup since the nineties and has now decided to enter in the green marketing and widen their offer through a line of natural products. The main issues marketing managers want to understand, before proceeding with a particular strategy regard:
-• The differences in attitudes and characteristics between consumers/non-consumers of natural products (today non-consumers can be tomorrow customers?)
-• the factors impacting on the willingness to buy, and on the purchase habits
-• the products to which customers are more interested
-• the product characteristics on which customers focus their attention
-• the way customers form their information about the products
-• the existence of particular dimensions along which consumers of cosmetics perceive natural products
-• the existence of particular profiles of customers, in terms of lifestyle, perceptions, sociodemographic characteristics
+- The differences in attitudes and characteristics between consumers/non-consumers of natural products (today non-consumers can be tomorrow customers?)
+- the factors impacting on the willingness to buy, and on the purchase habits
+- the products to which customers are more interested
+- the product characteristics on which customers focus their attention
+- the way customers form their information about the products
+- the existence of particular dimensions along which consumers of cosmetics perceive natural products
+- the existence of particular profiles of customers, in terms of lifestyle, perceptions, sociodemographic characteristics
 To understand the attitudes of prospect customers, they develop a questionnaire to investigate the most important factors influencing customers’ choices and preferences, as well as a number of variables related to lifestyle, purchase and use habits, and a small number of sociodemographic variables. The questionnaire was administered through the CAWI (Computer Assisted Web Interviewing) technique, with recruitment through social networks (snow-ball sampling). The questionnaire was administrated to 209 respondents, obtaining 138 valid questionnaires. To facilitate respondents, the questionnaire was articulated in several sections:
 1. Natural cosmetics The first section of the questionnaire was aimed at collecting general information on the perception of natural cosmetics and on the propensity to purchase the category by the respondents, in order to have a first classification of purchasers of natural cosmetics. In particular, the attitude of the latter has been examined with reference to the categories of products purchased, the frequency of shopping and the methods for finding out the characteristics of the products.
 2. Facial care products The second section was aimed at detecting information regarding the purchase behaviour of facial care products, including a series of aspects such as, for example, distribution channels and relevant product attributes. This part was oriented to the evaluation of the variables concerning the entire process of purchase of skincare products by the interviewees, regardless of their propensity, in terms of purchase / non-purchase, towards natural cosmetics.
