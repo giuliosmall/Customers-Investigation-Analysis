@@ -1,5 +1,5 @@
 # customers_investigation
-Project created to explore and investigate the possibility for a traditional cosmetic company to enter the "green" sector.
+Explore and investigate the possibility for a traditional cosmetic company to enter the "green" sector.
 
 ## INTRODUCTION
 "Beautiful" is a company selling cosmetics, mainly in the UK. The company have been providing fragrances, skin care, and makeup since the nineties and has now decided to enter in the green marketing and widen their offer through a line of natural products. The main issues marketing managers want to understand, before proceeding with a particular strategy regard:
